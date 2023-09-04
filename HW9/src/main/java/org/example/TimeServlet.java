@@ -1,5 +1,4 @@
 package org.example;
-
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.templateresolver.FileTemplateResolver;
@@ -8,12 +7,11 @@ import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 @WebServlet("/time")
 public class TimeServlet extends HttpServlet {
 
@@ -40,9 +38,7 @@ public class TimeServlet extends HttpServlet {
         log((String) session.getAttribute("lastTimeZone"));
 
         String timezone = req.getParameter("timezone");
-        if (timezone != null) {
-            timezone = URLEncoder.encode(timezone, StandardCharsets.UTF_8);
-        } else {
+        if (timezone == null || timezone.isEmpty()) {
             timezone = "UTC";
         }
 
@@ -62,21 +58,17 @@ public class TimeServlet extends HttpServlet {
         respMap.put("timeZone", DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()));
         try {
             resp.setContentType("text/html");
-            respMap.put("calcTimeZone", DateTimeFormatter.ISO_DATE_TIME
-                    .format(
-                            LocalDateTime.now(ZoneId.of(timezone))
-                    ));
-            resp.addCookie(new Cookie("lastResp", (String) respMap.get("calcTimeZone")));
-            session.setAttribute("calcTimeZone", (String) respMap.get("calcTimeZone"));
+            String calcTimeZone = DateTimeFormatter.ISO_DATE_TIME
+                    .format(LocalDateTime.now(ZoneId.of(timezone)));
+            respMap.put("calcTimeZone", calcTimeZone);
+            resp.addCookie(new Cookie("lastResp", calcTimeZone));
+            session.setAttribute("calcTimeZone", calcTimeZone);
         } catch (Exception e) {
-            respMap.put("error", e);
+            respMap.put("error", e.getMessage());
         }
 
-        Context simpleContext = new Context(
-                req.getLocale(),
-                respMap
-        );
+        Context simpleContext = new Context(req.getLocale());
+        simpleContext.setVariables(respMap);
         engine.process("time_template", simpleContext, resp.getWriter());
-        resp.getWriter().close();
     }
 }
