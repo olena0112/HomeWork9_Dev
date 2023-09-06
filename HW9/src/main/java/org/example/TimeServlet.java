@@ -34,51 +34,36 @@ public class TimeServlet extends HttpServlet {
         HttpSession session = req.getSession(true);
 
         String timezone = req.getParameter("timezone");
-        if (timezone != null) {
-            // Збереження значення часового поясу в Cookie
-            Cookie timezoneCookie = new Cookie("timezone", timezone);
-            timezoneCookie.setMaxAge(30 * 24 * 60 * 60); // Налаштуйте бажаний термін життя Cookie (30 днів у цьому випадку)
-            resp.addCookie(timezoneCookie);
 
-            // Збереження значення часового поясу в Cookie "lastTimezone"
-            Cookie lastTimezoneCookie = new Cookie("lastTimezone", timezone);
-            lastTimezoneCookie.setMaxAge(30 * 24 * 60 * 60);
-            resp.addCookie(lastTimezoneCookie);
+        if (timezone != null) {
+            // Зберегти передану таймзону в куках
+            Cookie timezoneCookie = new Cookie("timezone", timezone);
+            resp.addCookie(timezoneCookie);
         } else {
-            // Отримання значення часового поясу з Cookie
+            // Отримати збережену таймзону з куків, якщо не передано нову
             Cookie[] cookies = req.getCookies();
             if (cookies != null) {
                 for (Cookie cookie : cookies) {
                     if ("timezone".equals(cookie.getName())) {
                         timezone = cookie.getValue();
+                        break;
                     }
                 }
             }
         }
 
-        String lastTimezone = null;
-        // Отримання значення "Last timezone" з Cookie
-        Cookie[] cookies = req.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("lastTimezone".equals(cookie.getName())) {
-                    lastTimezone = cookie.getValue();
-                }
-            }
-        }
-
         String currentTime = "";
+
         try {
             ZoneId zoneId = ZoneId.of(timezone != null ? timezone : "UTC");
             ZonedDateTime zonedDateTime = ZonedDateTime.now(zoneId);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'XXX");
-            currentTime = formatter.format(zonedDateTime);
+            currentTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'XXX").format(zonedDateTime);
+
         } catch (Exception e) {
             respMap.put("error", e);
         }
 
         respMap.put("timeZone", currentTime);
-        respMap.put("lastTimezone", lastTimezone); // Додаємо значення "Last timezone" у відповідь
 
         Context simpleContext = new Context(
                 req.getLocale(),
