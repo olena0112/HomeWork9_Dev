@@ -1,7 +1,6 @@
-package org.example;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
-import org.thymeleaf.templateresolver.FileTemplateResolver;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -14,15 +13,14 @@ import java.util.Map;
 
 @WebServlet("/time")
 public class TimeServlet extends HttpServlet {
-
     private TemplateEngine engine;
 
     @Override
     public void init() throws ServletException {
         engine = new TemplateEngine();
 
-        FileTemplateResolver resolver = new FileTemplateResolver();
-        resolver.setPrefix("templates/");
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("/templates/");
         resolver.setSuffix(".html");
         resolver.setTemplateMode("HTML5");
         resolver.setOrder(engine.getTemplateResolvers().size());
@@ -34,41 +32,59 @@ public class TimeServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Map<String, Object> respMap = new LinkedHashMap<>();
         HttpSession session = req.getSession(true);
-        log((String) session.getAttribute("calcTimeZone"));
-        log((String) session.getAttribute("lastTimeZone"));
 
         String timezone = req.getParameter("timezone");
-        if (timezone == null || timezone.isEmpty()) {
-            timezone = "UTC";
+        if (timezone != null) {
+            // Збереження значення часового поясу в Cookie
+            Cookie timezoneCookie = new Cookie("timezone", timezone);
+            timezoneCookie.setMaxAge(30 * 24 * 60 * 60); // Налаштуйте бажаний термін життя Cookie (30 днів у цьому випадку)
+            resp.addCookie(timezoneCookie);
+
+            // Збереження значення часового поясу в Cookie "lastTimezone"
+            Cookie lastTimezoneCookie = new Cookie("lastTimezone", timezone);
+            lastTimezoneCookie.setMaxAge(30 * 24 * 60 * 60);
+            resp.addCookie(lastTimezoneCookie);
+        } else {
+            // Отримання значення часового поясу з Cookie
+            Cookie[] cookies = req.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie : cookies) {
+                    if ("timezone".equals(cookie.getName())) {
+                        timezone = cookie.getValue();
+                    }
+                }
+            }
         }
 
         String lastTimezone = null;
-        if (req.getCookies() != null) {
-            for (Cookie cookie : req.getCookies()) {
-                if (cookie.getName().equals("lastReq")) {
+        // Отримання значення "Last timezone" з Cookie
+        Cookie[] cookies = req.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("lastTimezone".equals(cookie.getName())) {
                     lastTimezone = cookie.getValue();
                 }
-                log(cookie.getName() + "=" + cookie.getValue());
             }
         }
-        respMap.put("lastTimeZone", lastTimezone);
-        session.setAttribute("lastTimeZone", lastTimezone);
-        log(timezone);
-        resp.addCookie(new Cookie("lastReq", timezone));
-        respMap.put("timeZone", DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()));
+
+        String currentTime = "";
         try {
-            resp.setContentType("text/html");
-            String calcTimeZone = DateTimeFormatter.ISO_DATE_TIME
-                    .format(LocalDateTime.now(ZoneId.of(timezone)));
-            respMap.put("calcTimeZone", calcTimeZone);
-            resp.addCookie(new Cookie("lastResp", calcTimeZone));
-            session.setAttribute("calcTimeZone", calcTimeZone);
+            ZoneId zoneId = ZoneId.of(timezone != null ? timezone : "UTC");
+            ZonedDateTime zonedDateTime = ZonedDateTime.now(zoneId);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'XXX");
+            currentTime = formatter.format(zonedDateTime);
         } catch (Exception e) {
-            respMap.put("error", e.getMessage());
+            respMap.put("error", e);
         }
 
-        Context simpleContext = new Context(req.getLocale());
-        simpleContext.setVariables(respMap);
+        respMap.put("timeZone", currentTime);
+        respMap.put("lastTimezone", lastTimezone); // Додаємо значення "Last timezone" у відповідь
+
+        Context simpleContext = new Context(
+                req.getLocale(),
+                respMap
+        );
+
         engine.process("time_template", simpleContext, resp.getWriter());
     }
 }
